@@ -1,0 +1,901 @@
+{
+	"info": {
+		"_postman_id": "d41e0b71-7347-4bd4-a577-656e46b238bd",
+		"name": "Repointing System DWC Models",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "21737837"
+	},
+	"item": [
+		{
+			"name": "Get-CSRF-Token",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// Tests: ",
+							"//  - Check if connection can be established using the cookie",
+							"//  - Check if valid CSRF token could be retrieved",
+							"",
+							"pm.test(\"Status code is 200\", function () {",
+							"  pm.response.to.have.status(200);",
+							"});",
+							"",
+							"// server returns html page if cookie is invalid",
+							"pm.test(\"No html error page - valid json\", function () {",
+							"  let contentType = pm.response.headers.get(\"content-type\");",
+							"  pm.expect(contentType).to.not.eql(\"text/html\");",
+							"  pm.expect(contentType).to.contain(\"application/json\");",
+							"});",
+							"",
+							"// Validate and Store CSRF-Token ",
+							"let token = pm.response.headers.get(\"x-csrf-token\");",
+							"",
+							"pm.test(\"Fetched x-csrf-token \"+token, function () {",
+							"  pm.expect(token).to.not.eql(undefined)",
+							"});",
+							"",
+							"pm.collectionVariables.set(\"x-csrf-token\",token)",
+							"console.log(\"fetched x-csrf-token: \" + token);",
+							"",
+							"",
+							"pm.test(\"Initialize Collection Variables: Model/DataSource Related\", function(){",
+							"    pm.collectionVariables.set(\"ds_resource_Info_Stringify\",\"\");",
+							"    pm.collectionVariables.set(\"ds_object_name\",\"\");",
+							"    pm.collectionVariables.set(\"ds_resource_id\",\"\");",
+							"    pm.collectionVariables.set(\"ds_parent_resource_id\",\"\");",
+							"    pm.collectionVariables.set(\"ds_type\",\"\");",
+							"    pm.collectionVariables.set(\"ds_description\",\"\");        ",
+							"})",
+							"",
+							"pm.test(\"Initialize Collection Variables: Story Related\", function(){",
+							"    pm.collectionVariables.set(\"resourceInfoStoryReplacedConn\",\"\");",
+							"    pm.collectionVariables.set(\"resourceInfoStoryName\",\"\");",
+							"    pm.collectionVariables.set(\"resourceInfoStoryParentId\",\"\");",
+							"    pm.collectionVariables.set(\"resourceInfoStoryDescription\",\"\");",
+							"    pm.collectionVariables.set(\"resourceInfoStoryType\",\"\");  ",
+							"    pm.collectionVariables.set(\"resourceInfoStoryIsOptimized\",\"\");  ",
+							"    pm.expect(\"\").to.eql(\"\");",
+							"})",
+							"",
+							"pm.test(\"Initialize Collection Variables: Model Iteration Related\", function(){",
+							"    pm.collectionVariables.set(\"model_Current_Id\",\"\");",
+							"    pm.collectionVariables.set(\"model_List\",\"\");",
+							"    pm.collectionVariables.set(\"model_List_Count\",\"\");",
+							"    pm.collectionVariables.set(\"model_List_Processed\",\"-1\");",
+							"    pm.expect(\"\").to.eql(\"\");",
+							"})",
+							"",
+							"postman.setNextRequest(\"GetStory definition from server and replace\");"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "X-Csrf-Token",
+						"value": "Fetch",
+						"type": "default"
+					},
+					{
+						"key": "Cookie",
+						"value": "{{init_cookie}}",
+						"type": "default"
+					},
+					{
+						"key": "",
+						"value": "",
+						"type": "default",
+						"disabled": true
+					}
+				],
+				"url": {
+					"raw": "{{init_url}}/sap/bc/ina/service/v2/GetServerInfo",
+					"host": [
+						"{{init_url}}"
+					],
+					"path": [
+						"sap",
+						"bc",
+						"ina",
+						"service",
+						"v2",
+						"GetServerInfo"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetStory definition from server and replace",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// Combines values into a json name-value pair ",
+							"// - replace: \"name\":\"old_value\" with \"name\":\"new_value\"",
+							"function replaceNameValueJSON(content, name, old_value, new_value){",
+							"",
+							"  let name_str      = JSON.stringify(name);",
+							"  let old_value_str = JSON.stringify(old_value);",
+							"  let new_value_str = JSON.stringify(new_value);",
+							"  let search_str    = name_str+\":\"+old_value_str;",
+							"  let replace_str   = name_str+\":\"+new_value_str;",
+							"  console.log(\"JSON Search/replace: \"+search_str+\" replace by \"+replace_str);",
+							"",
+							"  content = content.replaceAll(search_str, replace_str)  ",
+							"  return content;",
+							"}",
+							"",
+							"function replacementCheck(content, old_value){",
+							"",
+							"    let backQuote = String.fromCharCode(92) + '\"';",
+							"    let old_value_backQuote = backQuote + old_value + backQuote;",
+							"    let position_backQuote  = content.search(old_value_backQuote);",
+							"",
+							"    let old_value_stringify = JSON.stringify(old_value);",
+							"    let position_stringify  = content.search(old_value_stringify);",
+							"",
+							"    let position = -1;",
+							"    if (position_stringify != -1){ position = position_stringify; };",
+							"    if (position_backQuote != -1){ position = position_backQuote; };",
+							"",
+							"    if (position != -1){",
+							"        console.log(\"JSON Search/Replace: Attention - Old pattern still found after replacement! Revisit finding!\");",
+							"        console.log(\"JSON Search/Replace: Context Snipped of first occurence: [...] \" + content.substring(position-30,position+old_value.length+1)) + \" [...]\";",
+							"    } else {",
+							"        console.log(\"JSON Search/Replace: All occurences of \" +old_value_stringify+ \" and \" +old_value_backQuote+ \" have been replaced.\");",
+							"    }",
+							"    return position;",
+							"}",
+							"",
+							"function getModelList(content){",
+							"    // The path to the entity collection differs between contentOptimized and \"classic\"",
+							"    // Try both paths - give preference on optimized",
+							"    let entityList = [];",
+							"    let storyContentFound = false;",
+							"    try{",
+							"    // optimized path",
+							"        entityList = pm.response.json().data.cdata.contentOptimized.entities;",
+							"        storyContentFound = true;",
+							"        console.log(\"Story is content optimized.\");",
+							"        pm.collectionVariables.set(\"resourceInfoStoryIsOptimized\",true);",
+							"    } catch {",
+							"        if (storyContentFound == false){",
+							"            try{",
+							"        // classic path",
+							"            entityList = pm.response.json().data.cdata.content.entities;",
+							"            storyContentFound = true;  ",
+							"            console.log(\"Story is not content Optimized -> classic format.\");",
+							"            pm.collectionVariables.set(\"resourceInfoStoryIsOptimized\",false);",
+							"            } catch {",
+							"                console.log(\"No Story Content Found.\")",
+							"            }",
+							"        }",
+							"    }",
+							"    return entityList;",
+							"}",
+							"",
+							"function getDWCModelList(modelList){",
+							"    let DWCModelList = [];",
+							"    for (let i=0; i<modelList.length; i++){",
+							"        entity = modelList[i];",
+							"        // filter for DWC models",
+							"        if (entity.type == \"dataset\"){",
+							"            // console.log(entity.data);",
+							"            // let entityName = entity.data.metadata.id.name;",
+							"            let entityName = entity.data.modelId;",
+							"            let entityDescription = entity.data.metadata?.description;",
+							"            if(entityDescription)",
+							"            DWCModelList.push(JSON.stringify(entityName));",
+							"            console.log(\"Models: Found resourceId: \"+ entityName +\" Name: \"+ entityDescription)",
+							"        }",
+							"    }",
+							"    // console.log(DWCModelList);",
+							"    return DWCModelList",
+							"}",
+							"",
+							"// Check response: status code should be 200 and json",
+							"pm.test(\"Status code for reading is 200\", function () { pm.response.to.have.status(200);} );",
+							"",
+							"pm.test(\"No html error page - valid json\", function () {",
+							"  let contentType = pm.response.headers.get(\"content-type\");",
+							"  pm.expect(contentType).to.not.eql(\"text/html\");",
+							"  pm.expect(contentType).to.contain(\"application/json\");",
+							"});",
+							"",
+							"// extract story defition from response",
+							"let resourceInfoStory = JSON.stringify(pm.response.json().data.cdata);",
+							"console.log(\"Read content for story: \" + pm.collectionVariables.get(\"init_story_id\"));",
+							"",
+							"// Run replacement only if old and new connection name is different",
+							"// ----------------------------------------------------------------",
+							"let backslash = String.fromCharCode(92);",
+							"let backQuote = backslash + '\"';",
+							"",
+							"let old_name = pm.collectionVariables.get(\"init_old_connection\");",
+							"let new_name = pm.collectionVariables.get(\"init_new_connection\");",
+							"",
+							"if (old_name != new_name){",
+							"    console.log(\"Connection replacement starts ------------------\");",
+							"    resourceInfoStory = replaceNameValueJSON(resourceInfoStory,\"systemName\"     ,old_name, new_name);",
+							"    resourceInfoStory = replaceNameValueJSON(resourceInfoStory,\"connectionName\" ,old_name, new_name);",
+							"    resourceInfoStory = replaceNameValueJSON(resourceInfoStory,\"System\"         ,old_name, new_name);",
+							"    ",
+							"    let old_ff_system   = backQuote + \"System\" +backQuote+ \":\" +backQuote+ old_name +backQuote; ",
+							"    let new_ff_system   = backQuote + \"System\" +backQuote+ \":\" +backQuote+ new_name +backQuote;",
+							"    console.log(\"JSON Search/replace: \"+old_ff_system+\" replace by \"+new_ff_system);",
+							"    resourceInfoStory   = resourceInfoStory.replaceAll(old_ff_system,new_ff_system);",
+							"",
+							"    let old_uqm_system = JSON.stringify(\"uqmRemoteSystemNames\")+\":[\"+JSON.stringify(old_name);",
+							"    let new_uqm_system = JSON.stringify(\"uqmRemoteSystemNames\")+\":[\"+JSON.stringify(new_name);",
+							"    console.log(\"JSON Search/replace: \"+old_uqm_system+\" replace by \"+new_uqm_system);",
+							"    resourceInfoStory   = resourceInfoStory.replaceAll(old_uqm_system ,new_uqm_system);",
+							"",
+							"    // Is there an additional name-value pattern for connection or just a false positive finding?",
+							"    let position = replacementCheck(resourceInfoStory,old_name);",
+							"    pm.test(\"Search: Is old connection name found after replacement? \"+(position != -1), function () { pm.expect(position).to.eql(-1); });",
+							"",
+							"} else {",
+							"    console.log(\"Connection replacement skipped for story as old and new name are the same.\");",
+							"}",
+							"",
+							"// Run replacement only if old and new space id is different",
+							"// -----------------------------------------------------------",
+							"let old_space = pm.collectionVariables.get(\"init_old_space\");",
+							"let new_space = pm.collectionVariables.get(\"init_new_space\");",
+							"",
+							"if (old_space != new_space){",
+							"    console.log(\"Space replacement starts ------------------\");",
+							"    resourceInfoStory = replaceNameValueJSON(resourceInfoStory,\"remoteSchemaName\",old_space, new_space);",
+							"    resourceInfoStory = replaceNameValueJSON(resourceInfoStory,\"schemaName\"      ,old_space, new_space);",
+							"    resourceInfoStory = replaceNameValueJSON(resourceInfoStory,\"SchemaName\"      ,old_space, new_space);",
+							"",
+							"    let old_inamodel    = \"inamodel:[\" + old_space;",
+							"    let new_inamodel    = \"inamodel:[\" + new_space;",
+							"    resourceInfoStory = resourceInfoStory.replaceAll(old_inamodel,new_inamodel);",
+							"",
+							"    let old_ff_query    = backQuote+ \"SchemaName\" +backQuote+ \":\" +backQuote+ old_space + backQuote;",
+							"    let new_ff_query    = backQuote+ \"SchemaName\" +backQuote+ \":\" +backQuote+ new_space + backQuote;",
+							"    resourceInfoStory = resourceInfoStory.replaceAll(old_ff_query,new_ff_query);",
+							"",
+							"    // Is there an additional name-value pattern for space or just a false positive finding?",
+							"    let position = replacementCheck(resourceInfoStory,old_space);",
+							"    pm.test(\"Search: Is old space name found after replacement? \"+(position != -1), function () { pm.expect(position).to.eql(-1); });",
+							"",
+							"} else {",
+							"    console.log(\"Space replacement skipped for story as old and new name are the same.\")",
+							"}",
+							"",
+							"// Run replacement only if old and new model name is different and current model is same as old model",
+							"// ----------------------------------------------------------------",
+							"let old_model = pm.collectionVariables.get(\"init_old_dwc_model\");",
+							"let new_model = pm.collectionVariables.get(\"init_new_dwc_model\");",
+							"",
+							"if (old_model != new_model){",
+							"    console.log(\"DWC Model replacement starts ------------------\")",
+							"    resourceInfoStory = replaceNameValueJSON(resourceInfoStory, \"name\", old_model, new_model);",
+							"    resourceInfoStory = replaceNameValueJSON(resourceInfoStory, \"description\", old_model, new_model);    ",
+							"    resourceInfoStory = replaceNameValueJSON(resourceInfoStory, \"shortDescription\", old_model, new_model);    ",
+							"    resourceInfoStory = replaceNameValueJSON(resourceInfoStory, \"objectName\", old_model, new_model);    ",
+							"    resourceInfoStory = replaceNameValueJSON(resourceInfoStory, \"ObjectName\", old_model, new_model);    ",
+							"    resourceInfoStory = replaceNameValueJSON(resourceInfoStory, \"displayName\", old_model, new_model);    ",
+							"    resourceInfoStory = replaceNameValueJSON(resourceInfoStory, \"en\", old_model, new_model);    ",
+							"    resourceInfoStory = replaceNameValueJSON(resourceInfoStory, \"en_UK\", old_model, new_model);    ",
+							"    resourceInfoStory = replaceNameValueJSON(resourceInfoStory, \"remoteObjectName\", old_model, new_model);    ",
+							"    resourceInfoStory = replaceNameValueJSON(resourceInfoStory, \"datasetName\", old_model, new_model);    ",
+							"    resourceInfoStory = replaceNameValueJSON(resourceInfoStory, \"datasetDescription\", old_model, new_model);    ",
+							"    // Is there an additional name-value pattern for connection or just a false positive finding?",
+							"    let position = replacementCheck(resourceInfoStory,old_model);",
+							"    pm.test(\"Search: Is old model name found after replacement? \"+(position != -1), function () { pm.expect(position).to.eql(-1); });",
+							"}",
+							"else {",
+							"    console.log(\"Model replacement skipped for story as old and new name are the same.\")",
+							"}",
+							"",
+							"",
+							"",
+							"",
+							"// store story and attributes in variable - used for UpdateStory - Body",
+							"pm.collectionVariables.set(\"resourceInfoStoryReplacedConn\", JSON.stringify(resourceInfoStory));",
+							"",
+							"let storyInfo = pm.response.json();",
+							"pm.collectionVariables.set(\"resourceInfoStoryName\",         storyInfo.name);",
+							"pm.collectionVariables.set(\"resourceInfoStoryType\",         storyInfo.resourceType);",
+							"pm.collectionVariables.set(\"resourceInfoStoryParentId\",     storyInfo.metadata.parentId);",
+							"pm.collectionVariables.set(\"resourceInfoStoryDescription\",  storyInfo.metadata.description);",
+							"",
+							"console.log(\"Extracting Model List starts ------------------\");",
+							"let modelList = getModelList(resourceInfoStory);",
+							"pm.test(\"Story Content Found\",function(){ pm.expect(modelList.length).is.above(0) });",
+							"",
+							"let DWCModelList = getDWCModelList(modelList);",
+							"console.log(\"Models: Count \"+ DWCModelList.length);",
+							"",
+							"pm.test(\"At least one DWC model found ( count is \"+ DWCModelList.length+\" )\", function () {",
+							"    pm.expect(DWCModelList.length).is.above(0); });",
+							"",
+							"// store model list information for iteration",
+							"pm.collectionVariables.set(\"model_List_Count\", DWCModelList.length);",
+							"pm.collectionVariables.set(\"model_List_Processed\", -1);",
+							"pm.collectionVariables.set(\"model_List\", JSON.stringify(DWCModelList));",
+							"",
+							"postman.setNextRequest(\"UpdateStory on the server\");",
+							""
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-csrf-token",
+						"value": "{{x-csrf-token}}",
+						"type": "default"
+					},
+					{
+						"key": "Cookie",
+						"value": "{{init_cookie}}",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"action\": \"getResourceEx\",\n    \"data\": {\n        \"resourceId\": \"{{init_story_id}}\",\n        \"metadata\": {\n            \"name\": true,\n            \"description\": true,\n            \"access\": true,\n            \"userAuthOnly\": true,\n            \"ancestorPath\": {\n                \"name\": true,\n                \"access\": true,\n                \"description\": true,\n                \"ownerType\": true,\n                \"parentResId\": true,\n                \"spaceId\": true\n            },\n            \"resourceType\": true,\n            \"packageId\": true,\n            \"createdBy\": true,\n            \"modifiedBy\": true,\n            \"updateCounter\": true,\n            \"createdTime\": true,\n            \"modifiedTime\": true,\n            \"epmObjectData\": {\n                \"includeDependencies\": false,\n                \"includeSubItems\": true,\n                \"options\": {}\n            },\n            \"spaceId\": true\n        }\n    }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{init_url}}/sap/fpa/services/rest/epm/contentlib?tenant={{init_tenant_id}}",
+					"host": [
+						"{{init_url}}"
+					],
+					"path": [
+						"sap",
+						"fpa",
+						"services",
+						"rest",
+						"epm",
+						"contentlib"
+					],
+					"query": [
+						{
+							"key": "tenant",
+							"value": "{{init_tenant_id}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "UpdateStory on the server",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+							"",
+							"// Per Default the Models are Processed",
+							"// let isContentOptimized = pm.collectionVariables.get(\"resourceInfoStoryIsOptimized\");",
+							"// if (isContentOptimized == true){",
+							"postman.setNextRequest(\"GetModel definition from server\");",
+							"// }"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Cookie",
+						"value": "{{init_cookie}}",
+						"type": "default"
+					},
+					{
+						"key": "x-csrf-token",
+						"value": "{{x-csrf-token}}",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"action\": \"updateContent\",\n    \"data\": {\n        \"parentResId\": \"{{resourceInfoStoryParentId}}\",\n        \"resourceType\": \"{{resourceInfoStoryType}}\",\n        \"name\": \"{{resourceInfoStoryName}}\",\n        \"description\": \"{{resourceInfoStoryDescription}}\",\n        \"cdata\": {{resourceInfoStoryReplacedConn}},\n        \"updateOpt\": {\n            \"action\": \"updateStructure\",\n            \"markForTranslation\": false\n        },\n        \"resourceId\": \"{{init_story_id}}\"\n    }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{init_url}}/sap/fpa/services/rest/epm/contentlib?tenant={{init_tenant_id}}",
+					"host": [
+						"{{init_url}}"
+					],
+					"path": [
+						"sap",
+						"fpa",
+						"services",
+						"rest",
+						"epm",
+						"contentlib"
+					],
+					"query": [
+						{
+							"key": "tenant",
+							"value": "{{init_tenant_id}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetModel definition from server",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// Combines values into a json name-value pair ",
+							"// - replace: \"name\":\"old_value\" with \"name\":\"new_value\"",
+							"function replaceNameValueJSON(content, name, old_value, new_value){",
+							"",
+							"  let name_str      = JSON.stringify(name);",
+							"  let old_value_str = JSON.stringify(old_value);",
+							"  let new_value_str = JSON.stringify(new_value);",
+							"  let search_str    = name_str+\":\"+old_value_str;",
+							"  let replace_str   = name_str+\":\"+new_value_str;",
+							"  console.log(\"JSON Search/replace: \"+search_str+\" replace by \"+replace_str);",
+							"",
+							"  let new_content = content.replaceAll(search_str, replace_str)  ",
+							"  return new_content;",
+							"}",
+							"",
+							"function replacementCheck(content, old_value){",
+							"    let backQuote = String.fromCharCode(92) + '\"';",
+							"    let old_value_backQuote = backQuote + old_value + backQuote;",
+							"    let position_backQuote  = content.search(old_value_backQuote);",
+							"",
+							"    let old_value_stringify = JSON.stringify(old_value);",
+							"    let position_stringify  = content.search(old_value_stringify);",
+							"",
+							"    let position = -1;",
+							"    if (position_stringify != -1){ position = position_stringify; };",
+							"    if (position_backQuote != -1){ position = position_backQuote; };",
+							"",
+							"    if (position != -1){",
+							"        console.log(\"JSON Search/Replace: Attention - Old pattern still found after replacement! Revisit finding!\");",
+							"        console.log(\"JSON Search/Replace: Context Snipped of first occurence: [...] \" + content.substring(position-30,position+old_value.length+1)) + \" [...]\";",
+							"    } else {",
+							"        console.log(\"JSON Search/Replace: All occurences of \" +old_value_stringify+ \" and \" +old_value_backQuote+ \" have been replaced.\");",
+							"    }",
+							"    return position;",
+							"}",
+							"",
+							"pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+							"",
+							"let all = pm.response.json();",
+							"",
+							"// assuming just one model",
+							"let dataSource = all.cdata.sources[0];",
+							"pm.test(\"Source count is expected to the 1.\", function(){pm.expect(all.cdata.sources.length).is.eql(1);})",
+							"",
+							"let objectName = dataSource.objectName;",
+							"pm.collectionVariables.set(\"ds_object_name\", objectName);",
+							"",
+							"let description = all.description;",
+							"pm.collectionVariables.set(\"ds_description\", description);",
+							"",
+							"let schemaName = JSON.stringify(dataSource.schemaName);",
+							"let connName = JSON.stringify(dataSource.connectionName);",
+							"",
+							"let resourceId = all.resourceId;",
+							"pm.collectionVariables.set(\"ds_resource_id\", resourceId);",
+							"",
+							"let parentSourceId = all.parentResId;",
+							"pm.collectionVariables.set(\"ds_parent_resource_id\", parentSourceId);",
+							"",
+							"let type = all.resourceType;",
+							"pm.collectionVariables.set(\"ds_type\", type);",
+							"",
+							"pm.test(\"All model properties found (name = \"+ objectName+\" , schema = \"+schemaName+\" , conn = \"+connName+\", resourceId = \"+resourceId+\", parentresourceId = \"+parentSourceId+\", type = \"+type, function () {",
+							"    pm.expect(objectName).to.not.eql(undefined);",
+							"    pm.expect(schemaName).to.not.eql(undefined);",
+							"    pm.expect(connName).to.not.eql(undefined);",
+							"    pm.expect(resourceId).to.not.eql(undefined);",
+							"    pm.expect(parentSourceId).to.not.eql(undefined);",
+							"    pm.expect(type).to.not.eql(undefined);",
+							"});",
+							"",
+							"console.log(\"Model: Summary - type: \"+ type +\" name: \" + objectName + \" schema: \" + schemaName + \" connection: \" + connName);",
+							"",
+							"let modelDefinition = JSON.stringify(all.cdata);",
+							"",
+							"// Run replacement only if old and new space name is different",
+							"// -----------------------------------------------------------",
+							"let old_space = pm.collectionVariables.get(\"init_old_space\");",
+							"let new_space = pm.collectionVariables.get(\"init_new_space\");",
+							"",
+							"if (old_space != new_space){",
+							"    console.log(\"Space replacement starts ------------------\")",
+							"    modelDefinition = replaceNameValueJSON(modelDefinition, \"schemaName\", old_space, new_space);",
+							"    modelDefinition = replaceNameValueJSON(modelDefinition, \"SchemaName\", old_space, new_space);",
+							"    // Is there an additional name-value pattern for connection or just a false positive finding?",
+							"    let position = replacementCheck(modelDefinition,old_space);",
+							"    pm.test(\"Search: Is old space name found after replacement? \"+(position != -1), function () { pm.expect(position).to.eql(-1); });",
+							"}",
+							"",
+							"// Run replacement only if old and new connection name is different",
+							"// ----------------------------------------------------------------",
+							"let old_name = pm.collectionVariables.get(\"init_old_connection\");",
+							"let new_name = pm.collectionVariables.get(\"init_new_connection\");",
+							"",
+							"if (old_name != new_name){",
+							"    console.log(\"Connection replacement starts ------------------\")",
+							"    modelDefinition = replaceNameValueJSON(modelDefinition, \"connectionName\", old_name, new_name);",
+							"    modelDefinition = replaceNameValueJSON(modelDefinition, \"System\", old_name, new_name);    ",
+							"    // Is there an additional name-value pattern for connection or just a false positive finding?",
+							"    let position = replacementCheck(modelDefinition,old_name);",
+							"    pm.test(\"Search: Is old connection name found after replacement? \"+(position != -1), function () { pm.expect(position).to.eql(-1); });",
+							"}",
+							"",
+							"// Run replacement only if old and new model name is different and current model is same as old model",
+							"// ----------------------------------------------------------------",
+							"let old_model = pm.collectionVariables.get(\"init_old_dwc_model\");",
+							"let new_model = pm.collectionVariables.get(\"init_new_dwc_model\");",
+							"",
+							"if (old_model != new_model && old_model == objectName){",
+							"    console.log(\"DWC Model replacement starts ------------------\")",
+							"    modelDefinition = replaceNameValueJSON(modelDefinition, \"name\", old_model, new_model);",
+							"    modelDefinition = replaceNameValueJSON(modelDefinition, \"description\", old_model, new_model);    ",
+							"    modelDefinition = replaceNameValueJSON(modelDefinition, \"objectName\", old_model, new_model);    ",
+							"    modelDefinition = replaceNameValueJSON(modelDefinition, \"ObjectName\", old_model, new_model);    ",
+							"    modelDefinition = replaceNameValueJSON(modelDefinition, \"displayName\", old_model, new_model);    ",
+							"    modelDefinition = replaceNameValueJSON(modelDefinition, \"en\", old_model, new_model);    ",
+							"    modelDefinition = replaceNameValueJSON(modelDefinition, \"en_UK\", old_model, new_model);    ",
+							"    // Is there an additional name-value pattern for connection or just a false positive finding?",
+							"    let position = replacementCheck(modelDefinition,old_model);",
+							"    pm.test(\"Search: Is old model name found after replacement? \"+(position != -1), function () { pm.expect(position).to.eql(-1); });",
+							"}",
+							"",
+							"",
+							"let stringify = JSON.stringify(modelDefinition);",
+							"pm.collectionVariables.set(\"ds_resource_Info_Stringify\",stringify);",
+							"",
+							"postman.setNextRequest(\"UpdateModel replace and send to server\");"
+						],
+						"type": "text/javascript"
+					}
+				},
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							"console.log(\"GetModel - fetch model definition from server start -------------------\");",
+							"",
+							"let maxCount = pm.collectionVariables.get(\"model_List_Count\");",
+							"let currentCount = pm.collectionVariables.get(\"model_List_Processed\");",
+							"let model_List = JSON.parse(pm.collectionVariables.get(\"model_List\"));",
+							"",
+							"currentCount = currentCount + 1;",
+							"console.log(\"Model: Current processed index: \" + currentCount);",
+							"pm.collectionVariables.set(\"model_List_Processed\",currentCount);",
+							"",
+							"let currentModel = model_List[currentCount];",
+							"console.log(\"Model: ResourceId: \"+ currentModel);",
+							"pm.collectionVariables.set(\"model_Current_Id\",currentModel);",
+							"",
+							"// loop will close in test section of UpdateModel"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-csrf-token",
+						"value": "{{x-csrf-token}}",
+						"type": "default"
+					},
+					{
+						"key": "Cookie",
+						"value": "{{init_cookie}}",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"action\": \"getContent\",\n    \"data\": {\n        \"resourceId\": {{model_Current_Id}},\n        \"oOpt\": {\n            \"getSourceResource\": true,\n            \"propertyBag\": true,\n            \"includeAncestorInfo\": true,\n            \"fetchDisplayName\": true\n        }\n    }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{init_url}}/sap/fpa/services/rest/epm/contentlib?tenant={{init_tenant_id}}",
+					"host": [
+						"{{init_url}}"
+					],
+					"path": [
+						"sap",
+						"fpa",
+						"services",
+						"rest",
+						"epm",
+						"contentlib"
+					],
+					"query": [
+						{
+							"key": "tenant",
+							"value": "{{init_tenant_id}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "UpdateModel replace and send to server",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							""
+						],
+						"type": "text/javascript"
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"console.log(\"Update Model: name: \"+ pm.collectionVariables.get(\"ds_object_name\") + \" description: \"+ pm.collectionVariables.get(\"ds_description\"));",
+							"",
+							"pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });",
+							"",
+							"let maxCount = pm.collectionVariables.get(\"model_List_Count\");",
+							"let currentCount = pm.collectionVariables.get(\"model_List_Processed\");",
+							"",
+							"if (currentCount == maxCount-1){",
+							"    console.log(\"Update Model: Last Model Processed - Stop Iteration\")",
+							"    postman.setNextRequest(null);",
+							"} else {",
+							"    console.log(\"Update Model: Process Next Model - Continue Iteration\")",
+							"    postman.setNextRequest(\"GetModel definition from server\");",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-csrf-token",
+						"value": "{{x-csrf-token}}",
+						"type": "default"
+					},
+					{
+						"key": "Cookie",
+						"value": "{{init_cookie}}",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"action\": \"updateContent\",\n  \"data\": {\n    \"parentResId\": \"{{ds_parent_resource_id}}\",\n    \"resourceType\": \"{{ds_type}}\",\n    \"name\": \"{{ds_object_name}}\",\n    \"description\": \"{{ds_description}}\",\n    \"cdata\": {{ds_resource_Info_Stringify}},\n    \"updateOpt\": {\n      \"action\": \"updateStructure\",\n      \"markForTranslation\": false\n    },\n    \"resourceId\": \"{{ds_resource_id}}\"\n  }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{init_url}}/sap/fpa/services/rest/epm/contentlib?tenant={{init_tenant_id}}",
+					"host": [
+						"{{init_url}}"
+					],
+					"path": [
+						"sap",
+						"fpa",
+						"services",
+						"rest",
+						"epm",
+						"contentlib"
+					],
+					"query": [
+						{
+							"key": "tenant",
+							"value": "{{init_tenant_id}}"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "init_url",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "init_cookie",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "init_story_id",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "init_tenant_id",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "init_old_space",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "init_new_space",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "init_old_connection",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "init_new_connection",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "init_old_dwc_model",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "init_new_dwc_model",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "x-csrf-token",
+			"value": "Fetch",
+			"type": "default"
+		},
+		{
+			"key": "resourceInfoStoryReplacedConn",
+			"value": ""
+		},
+		{
+			"key": "resourceInfoStoryName",
+			"value": ""
+		},
+		{
+			"key": "resourceInfoStoryType",
+			"value": ""
+		},
+		{
+			"key": "resourceInfoStoryParentId",
+			"value": ""
+		},
+		{
+			"key": "resourceInfoStoryDescription",
+			"value": ""
+		},
+		{
+			"key": "model_Current_Id",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "model_List_Count",
+			"value": ""
+		},
+		{
+			"key": "model_List_Processed",
+			"value": ""
+		},
+		{
+			"key": "model_List",
+			"value": ""
+		},
+		{
+			"key": "resourceInfoStoryIsOptimized",
+			"value": ""
+		},
+		{
+			"key": "ds_object_name",
+			"value": ""
+		},
+		{
+			"key": "ds_resource_id",
+			"value": ""
+		},
+		{
+			"key": "ds_parent_resource_id",
+			"value": ""
+		},
+		{
+			"key": "ds_type",
+			"value": ""
+		},
+		{
+			"key": "ds_resource_Info_Stringify",
+			"value": ""
+		},
+		{
+			"key": "ds_description",
+			"value": ""
+		}
+	]
+}
